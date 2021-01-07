@@ -1,0 +1,10 @@
+{
+  "name": "gabor-graphql-uploader",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "author": "Attila Szeremi",
+  "license": "MIT",
+  "dependencies": {
+    "ts-node": "^9.1.1"
+  }
+}
