@@ -14,6 +14,28 @@ import qs from 'qs';
 
 const authorizationHeaderValue = `Bearer ${process.env.AUTH_TOKEN}`;
 
+// https://gitlab.com/snippets/1775781
+export async function retry<T>(
+  fn: () => Promise<T>,
+  retriesLeft: number = 3,
+  interval: number = 1000,
+  exponential: boolean = false
+): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    if (retriesLeft) {
+      await new Promise(r => setTimeout(r, interval));
+      return retry(
+        fn,
+        retriesLeft - 1,
+        exponential ? interval * 2 : interval,
+        exponential
+      );
+    } else throw new Error(`Max retries reached for function ${fn.name}`);
+  }
+}
+
 const client = new ApolloClient({
   link: new HttpLink({
     fetch,
@@ -70,7 +92,7 @@ const createContent = async (datum: Datum) => {
     imageUrl,
   );
 
-  const result = (await axios.post<{id: string}>(
+  const result = (await retry(() => axios.post<{id: string}>(
     `${process.env.GRAPHCMS_URL}/upload`,
     qs.stringify({url: imageUrl}),
     {
@@ -78,7 +100,7 @@ const createContent = async (datum: Datum) => {
         'content-type': 'application/x-www-form-urlencoded;charset=utf-8',
         Authorization: authorizationHeaderValue,
       }}
-  )).data;
+  ))).data;
   const assetId: string = result.id;
 
   const mutationData = `{
@@ -103,9 +125,9 @@ const createContent = async (datum: Datum) => {
   let mutationQuery = gql`
       ${queryBody}
   `;
-  await client.mutate({
+  await retry(() => client.mutate({
     mutation: mutationQuery,
-  });
+  }));
 
   ++totalCreated;
 
