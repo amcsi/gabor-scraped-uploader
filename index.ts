@@ -5,16 +5,23 @@ import {
   InMemoryCache,
   gql,
   HttpLink,
-  isApolloError, ServerError,
+  isApolloError,
 } from '@apollo/client/core';
 import { fetch } from 'cross-fetch';
 import FormData from 'form-data';
 import axios from 'axios';
 import qs from 'qs';
 
+const authorizationHeaderValue = `Bearer ${process.env.AUTH_TOKEN}`;
+
 const client = new ApolloClient({
-  link: new HttpLink({ uri: process.env.GRAPHCMS_URL, fetch }),
-  uri: process.env.GRAPHCMS_URL,
+  link: new HttpLink({
+    fetch,
+    uri: process.env.GRAPHCMS_URL,
+    headers: {
+      Authorization: authorizationHeaderValue,
+    },
+  }),
   cache: new InMemoryCache()
 });
 
@@ -35,9 +42,6 @@ const data: { [oldId: string]: Datum } = JSON.parse(fs.readFileSync(`${__dirname
 const datum = data[18];
 
 const createContent = async (datum: Datum) => {
-
-  const imageFilename = datum.imageUrl.split('/').reverse()[0];
-
   const formData = new FormData();
   let imageUrl = `http://www.ruszkai.hu${datum.imageUrl}`;
   formData.append(
@@ -45,17 +49,13 @@ const createContent = async (datum: Datum) => {
     imageUrl,
   );
 
-  let requestInfo: Partial<RequestInfo> = {
-    method: 'POST',
-  };
-  console.info(requestInfo);
   const result = (await axios.post<{id: string}>(
     `${process.env.GRAPHCMS_URL}/upload`,
     qs.stringify({url: imageUrl}),
     {
       headers: {
         'content-type': 'application/x-www-form-urlencoded;charset=utf-8',
-        Authorization: `Bearer ${process.env.AUTH_TOKEN}`,
+        Authorization: authorizationHeaderValue,
       }}
   )).data;
   const assetId: string = result.id;
@@ -66,9 +66,8 @@ const createContent = async (datum: Datum) => {
       name: ${JSON.stringify(datum.title)},
       alt: ${JSON.stringify(datum.imageAlt)},
       image: {
-        create: {
-          handle: ${JSON.stringify(imageUrl)},
-          fileName: ${JSON.stringify(imageFilename)}
+        connect: {
+          id: ${JSON.stringify(assetId)},
         }
       },
       taxonomy: {
@@ -76,14 +75,17 @@ const createContent = async (datum: Datum) => {
           oldId: ${JSON.stringify(datum.taxonomyId)}
         }
       },
+      oldId: ${JSON.stringify(datum.id)},
       body: ${JSON.stringify(htmlToText(datum.descriptionHtml))}
     }`;
 
+  const queryBody = `mutation {createImage(data: ${mutationData}) { id }}`;
+
   let mutationQuery = gql`
-      mutation {createImage(data: ${mutationData})}
+      ${queryBody}
   `;
-  console.info(mutationQuery);
-  const mutationResult = await client.mutate({
+  console.info(queryBody);
+  await client.mutate({
     mutation: mutationQuery,
   });
 };
@@ -93,7 +95,11 @@ async function execute() {
     await createContent(datum);
   } catch (e: unknown) {
     if (e instanceof Error && isApolloError(e)) {
-      console.error((e.networkError as ServerError).result);
+      console.error((e.name));
+      console.error((e.graphQLErrors));
+      console.error((e.extraInfo));
+      console.error((e.message));
+      console.error(JSON.stringify(e.networkError, null, 2));
     } else if (axios.isAxiosError(e)) {
       console.error(e.response?.data);
     } else {
