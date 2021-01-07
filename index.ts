@@ -44,6 +44,25 @@ const data = Object.values(dataAsObject);
 let totalCreated = 0;
 
 const createContent = async (datum: Datum) => {
+  const query = `query MyQuery {
+  image(where: {oldId: ${datum.id}}) {
+    id
+  }
+}
+`;
+  const fetchResult = await client.query({
+    query: gql`${query}`,
+  });
+
+  if (fetchResult.data.image?.id) {
+    ++totalCreated;
+
+    // This image was already created.
+    console.info(`Already exists: ${totalCreated} out of ${data.length} image items.`);
+    return;
+  }
+
+
   const formData = new FormData();
   let imageUrl = `http://www.ruszkai.hu${datum.imageUrl}`;
   formData.append(
