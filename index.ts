@@ -1,12 +1,6 @@
 import fs from 'fs';
 import { htmlToText } from 'html-to-text';
-import {
-  ApolloClient,
-  InMemoryCache,
-  gql,
-  HttpLink,
-  isApolloError,
-} from '@apollo/client/core';
+import { ApolloClient, gql, HttpLink, InMemoryCache, isApolloError } from '@apollo/client/core';
 import { fetch } from 'cross-fetch';
 import FormData from 'form-data';
 import axios from 'axios';
@@ -136,9 +130,9 @@ const createContent = async (datum: Datum) => {
 
 async function execute() {
   try {
-    await Promise.all(data.map((datum) => {
-      return createContent(datum);
-    }));
+    for (const datum of data) {
+      await createContent(datum);
+    }
 
     console.info('Successfully created all of the images :)');
   } catch (e: unknown) {
