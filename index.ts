@@ -37,9 +37,11 @@ type Datum = {
   taxonomyId: number;
 }
 
-const data: { [oldId: string]: Datum } = JSON.parse(fs.readFileSync(`${__dirname}/storage/data.json`).toString());
+const dataAsObject: { [oldId: string]: Datum } = JSON.parse(fs.readFileSync(`${__dirname}/storage/data.json`).toString());
 
-const datum = data[18];
+const data = Object.values(dataAsObject);
+
+let totalCreated = 0;
 
 const createContent = async (datum: Datum) => {
   const formData = new FormData();
@@ -59,8 +61,6 @@ const createContent = async (datum: Datum) => {
       }}
   )).data;
   const assetId: string = result.id;
-
-  console.info(`Successfully uploaded image: ${JSON.stringify(result)}`);
 
   const mutationData = `{
       name: ${JSON.stringify(datum.title)},
@@ -84,15 +84,22 @@ const createContent = async (datum: Datum) => {
   let mutationQuery = gql`
       ${queryBody}
   `;
-  console.info(queryBody);
   await client.mutate({
     mutation: mutationQuery,
   });
+
+  ++totalCreated;
+
+  console.info(`Successfully created ${totalCreated} out of ${data.length} image items.`);
 };
 
 async function execute() {
   try {
-    await createContent(datum);
+    await Promise.all(data.map((datum) => {
+      return createContent(datum);
+    }));
+
+    console.info('Successfully created all of the images :)');
   } catch (e: unknown) {
     if (e instanceof Error && isApolloError(e)) {
       console.error((e.name));
